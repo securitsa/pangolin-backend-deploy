@@ -1,0 +1,9 @@
+server_ip: ""
+server_user: ""
+server_key: ""
+deploy_dir: "/opt/pangolin"
+ghcr_owner: "securitsa"
+dialogue_tag: "latest"
+identity_tag: "latest"
+pulse_tag: "latest"
+app_port: 8000

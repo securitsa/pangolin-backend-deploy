@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "infra",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "-f", "docker/docker-compose.infra.yml", "--env-file", ".env", "up"],
+      "port": 15672
+    },
+    {
+      "name": "apps",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "-f", "docker/docker-compose.yml", "--env-file", ".env", "up"],
+      "port": 80
+    }
+  ]
+}

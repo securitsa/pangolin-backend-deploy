@@ -1,0 +1,85 @@
+# Copy this file to each service repo: .github/workflows/deploy.yml
+# Required GitHub Secrets (set in each repo or at org level):
+#   GHCR_TOKEN        - GitHub PAT with write:packages scope
+#   DEPLOY_HOST       - Server IP address
+#   DEPLOY_USER       - SSH user on server
+#   DEPLOY_SSH_KEY    - Private SSH key for server access
+#   DEPLOY_DIR        - Path on server (e.g., /opt/pangolin)
+
+name: Build & Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deploy environment"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  # Change IMAGE_NAME per service repo:
+  # pangolin-dialogue-service / pangolin-identity-service / pangolin-pulse-service
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            # Extract service name from repo name (e.g., org/pangolin-dialogue-service -> dialogue-service)
+            SERVICE_NAME=$(echo "${{ github.event.repository.name }}" | sed 's/pangolin-//')
+            cd ${{ secrets.DEPLOY_DIR }}
+            bash scripts/deploy.sh "$SERVICE_NAME" "${{ needs.build-and-push.outputs.image_tag }}"

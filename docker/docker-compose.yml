@@ -1,0 +1,112 @@
+name: pangolin-apps
+
+services:
+  dialogue-service:
+    image: ghcr.io/${GHCR_OWNER}/pangolin-dialogue-service:${DIALOGUE_TAG:-latest}
+    container_name: pangolin-dialogue-service
+    restart: unless-stopped
+    environment:
+      - API_ENVIRONMENT=prod
+      - DATABASE_USERNAME=${POSTGRES_USER}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_NAME=pangolin-dialogue-db
+      - DATABASE_HOST=pangolin-postgres
+      - REDIS_HOST=pangolin-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DATABASE=0
+      - CENTRIFUGO_API_KEY=${CENTRIFUGO_API_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - pangolin-network
+
+  identity-service:
+    image: ghcr.io/${GHCR_OWNER}/pangolin-identity-service:${IDENTITY_TAG:-latest}
+    container_name: pangolin-identity-service
+    restart: unless-stopped
+    environment:
+      - API_ENVIRONMENT=prod
+      - DATABASE_USERNAME=${POSTGRES_USER}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_NAME=pangolin-identity-db
+      - DATABASE_HOST=pangolin-postgres
+      - REDIS_HOST=pangolin-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DATABASE=1
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - pangolin-network
+
+  pulse-service:
+    image: ghcr.io/${GHCR_OWNER}/pangolin-pulse-service:${PULSE_TAG:-latest}
+    container_name: pangolin-pulse-service
+    restart: unless-stopped
+    environment:
+      - API_ENVIRONMENT=prod
+      - DATABASE_USERNAME=${POSTGRES_USER}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_NAME=pangolin-pulse-db
+      - DATABASE_HOST=pangolin-postgres
+      - REDIS_HOST=pangolin-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DATABASE=2
+      - IDENTITY_API_KEY=${IDENTITY_API_KEY}
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@pangolin-rabbitmq:5672/
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - pangolin-network
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: pangolin-nginx
+    restart: unless-stopped
+    volumes:
+      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot-webroot:/var/www/certbot:ro
+      - letsencrypt:/etc/letsencrypt:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - dialogue-service
+      - identity-service
+      - pulse-service
+    networks:
+      - pangolin-network
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: pangolin-certbot
+    volumes:
+      - certbot-webroot:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done'"
+    networks:
+      - pangolin-network
+
+volumes:
+  certbot-webroot:
+  letsencrypt:
+
+networks:
+  pangolin-network:
+    external: true

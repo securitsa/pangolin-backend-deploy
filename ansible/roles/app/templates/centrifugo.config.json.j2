@@ -1,0 +1,15 @@
+{
+  "engine": "redis",
+  "redis_address": "pangolin-redis:6379",
+  "redis_password": "{{ vault_redis_password }}",
+  "token_hmac_secret_key": "{{ vault_centrifugo_token_secret }}",
+  "api_key": "{{ vault_centrifugo_api_key }}",
+  "allowed_origins": ["*"],
+  "log_level": "info",
+  "ping_interval": "24h",
+  "pong_timeout": "23h",
+  "namespaces": [
+    { "name": "dialogue", "allow_subscribe_for_client": true },
+    { "name": "user", "allow_subscribe_for_client": true }
+  ]
+}

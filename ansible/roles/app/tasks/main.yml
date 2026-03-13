@@ -1,0 +1,88 @@
+- name: Create deploy directory structure
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0755"
+  loop:
+    - "{{ deploy_dir }}"
+    - "{{ deploy_dir }}/docker"
+    - "{{ deploy_dir }}/nginx"
+    - "{{ deploy_dir }}/nginx/conf.d"
+    - "{{ deploy_dir }}/configs"
+    - "{{ deploy_dir }}/configs/centrifugo"
+    - "{{ deploy_dir }}/configs/postgres"
+    - "{{ deploy_dir }}/scripts"
+
+- name: Copy docker-compose infrastructure
+  copy:
+    src: "{{ playbook_dir }}/../../docker/docker-compose.infra.yml"
+    dest: "{{ deploy_dir }}/docker/docker-compose.infra.yml"
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0644"
+
+- name: Copy docker-compose apps
+  copy:
+    src: "{{ playbook_dir }}/../../docker/docker-compose.yml"
+    dest: "{{ deploy_dir }}/docker/docker-compose.yml"
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0644"
+
+- name: Copy nginx configuration
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0644"
+  loop:
+    - { src: "{{ playbook_dir }}/../../nginx/nginx.conf", dest: "{{ deploy_dir }}/nginx/nginx.conf" }
+    - { src: "{{ playbook_dir }}/../../nginx/conf.d/api.conf", dest: "{{ deploy_dir }}/nginx/conf.d/api.conf" }
+
+- name: Copy postgres init script
+  copy:
+    src: "{{ playbook_dir }}/../../configs/postgres/init-databases.sh"
+    dest: "{{ deploy_dir }}/configs/postgres/init-databases.sh"
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0755"
+
+- name: Template centrifugo config
+  template:
+    src: centrifugo.config.json.j2
+    dest: "{{ deploy_dir }}/configs/centrifugo/config.json"
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0644"
+
+- name: Template .env file
+  template:
+    src: env.j2
+    dest: "{{ deploy_dir }}/.env"
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0600"
+
+- name: Copy deploy script
+  copy:
+    src: "{{ playbook_dir }}/../../scripts/deploy.sh"
+    dest: "{{ deploy_dir }}/scripts/deploy.sh"
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0755"
+
+- name: Copy SSL init script
+  copy:
+    src: "{{ playbook_dir }}/../../scripts/init-ssl.sh"
+    dest: "{{ deploy_dir }}/scripts/init-ssl.sh"
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0755"
+
+- name: Login to GHCR
+  shell: echo "{{ vault_ghcr_token }}" | docker login ghcr.io -u "{{ ghcr_owner }}" --password-stdin
+  become_user: "{{ server_user }}"
+  no_log: true

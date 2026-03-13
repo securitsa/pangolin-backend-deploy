@@ -1,0 +1,25 @@
+- name: Setup Pangolin server
+  hosts: all
+  become: yes
+
+  roles:
+    - common
+    - docker
+    - app
+
+  post_tasks:
+    - name: Start infrastructure services
+      shell: |
+        cd {{ deploy_dir }} &&
+        docker compose -f docker/docker-compose.infra.yml --env-file .env up -d
+      become_user: "{{ server_user }}"
+
+    - name: Wait for infrastructure to be healthy
+      pause:
+        seconds: 15
+
+    - name: Start application services
+      shell: |
+        cd {{ deploy_dir }} &&
+        docker compose -f docker/docker-compose.yml --env-file .env up -d
+      become_user: "{{ server_user }}"

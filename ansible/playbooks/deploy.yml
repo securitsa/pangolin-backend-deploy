@@ -1,0 +1,22 @@
+- name: Deploy Pangolin services
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Update configs on server
+      include_role:
+        name: app
+
+    - name: Deploy specific service
+      when: service is defined
+      shell: |
+        cd {{ deploy_dir }} &&
+        bash scripts/deploy.sh {{ service }} {{ tag | default('latest') }}
+      become_user: "{{ server_user }}"
+
+    - name: Deploy all services
+      when: service is not defined
+      shell: |
+        cd {{ deploy_dir }} &&
+        bash scripts/deploy.sh all latest
+      become_user: "{{ server_user }}"
