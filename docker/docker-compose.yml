@@ -7,15 +7,22 @@ services:
     restart: unless-stopped
     environment:
       - API_ENVIRONMENT=prod
+      # Database
       - DATABASE_USERNAME=${POSTGRES_USER}
       - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
       - DATABASE_NAME=pangolin-dialogue-db
       - DATABASE_HOST=pangolin-postgres
+      # Redis
       - REDIS_HOST=pangolin-redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_DATABASE=0
+      # Other
       - CENTRIFUGO_API_KEY=${CENTRIFUGO_API_KEY}
+      - GCS_PROJECT_ID=${GCS_PROJECT_ID}
+      - IDENTITY_API_KEY=${IDENTITY_API_KEY}
+      - IDENTITY_API_URL=http://pangolin-identity-service:8000/
+      - FIREBASE_CREDENTIALS_JSON=${FIREBASE_CREDENTIALS_JSON}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthcheck"]
       interval: 15s
@@ -31,15 +38,27 @@ services:
     restart: unless-stopped
     environment:
       - API_ENVIRONMENT=prod
+      # Database
       - DATABASE_USERNAME=${POSTGRES_USER}
       - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
       - DATABASE_NAME=pangolin-identity-db
       - DATABASE_HOST=pangolin-postgres
+      # Redis
       - REDIS_HOST=pangolin-redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_DATABASE=1
+      # Rabbit
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - RABBITMQ_HOST=pangolin-rabbitmq
+      - RABBITMQ_PORT=5672
+      # Other
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - JWT_SECRET_KEYS=${JWT_SECRET_KEYS}
+      - GCS_PROJECT_ID=${GCS_PROJECT_ID}
+      - SMSBY_API_TOKEN=${SMSBY_API_TOKEN}
+      - SMSBY_ALPHANAME_ID=${SMSBY_ALPHANAME_ID}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthcheck"]
       interval: 15s
@@ -55,22 +74,193 @@ services:
     restart: unless-stopped
     environment:
       - API_ENVIRONMENT=prod
+      # Database
       - DATABASE_USERNAME=${POSTGRES_USER}
       - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
       - DATABASE_NAME=pangolin-pulse-db
       - DATABASE_HOST=pangolin-postgres
+      # Redis
       - REDIS_HOST=pangolin-redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_DATABASE=2
-      - IDENTITY_API_KEY=${IDENTITY_API_KEY}
+      # Rabbit
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - RABBITMQ_HOST=pangolin-rabbitmq
+      - RABBITMQ_PORT=5672
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@pangolin-rabbitmq:5672/
+      # Other
+      - IDENTITY_API_KEY=${IDENTITY_API_KEY}
+      - IDENTITY_API_URL=http://pangolin-identity-service:8000
+      - GCS_PROJECT_ID=${GCS_PROJECT_ID}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_MODERATION_CHAT_ID=${TELEGRAM_MODERATION_CHAT_ID}
+      - FIREBASE_CREDENTIALS_JSON=${FIREBASE_CREDENTIALS_JSON}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthcheck"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - pangolin-network
+
+  pulse-scheduler:
+    image: ghcr.io/${GHCR_OWNER}/pangolin-pulse-service:${PULSE_TAG:-latest}
+    container_name: pangolin-pulse-scheduler
+    restart: unless-stopped
+    command: ["python", "scheduler/worker.py"]
+    environment:
+      - API_ENVIRONMENT=prod
+      # Database
+      - DATABASE_USERNAME=${POSTGRES_USER}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_NAME=pangolin-pulse-db
+      - DATABASE_HOST=pangolin-postgres
+      # Other
+      - IDENTITY_API_KEY=${IDENTITY_API_KEY}
+      - IDENTITY_API_URL=http://pangolin-identity-service:8000
+      - FIREBASE_CREDENTIALS_JSON=${FIREBASE_CREDENTIALS_JSON}
+      - EVENT_REMINDER_HOURS_BEFORE=3
+      - INACTIVE_USER_DAYS=21
+    networks:
+      - pangolin-network
+
+  moderation-bot:
+    image: ghcr.io/${GHCR_OWNER}/pangolin-pulse-service:${PULSE_TAG:-latest}
+    container_name: pangolin-moderation-bot
+    restart: unless-stopped
+    command: ["python", "bot_main.py"]
+    environment:
+      - API_ENVIRONMENT=prod
+      # Database
+      - DATABASE_USERNAME=${POSTGRES_USER}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_NAME=pangolin-pulse-db
+      - DATABASE_HOST=pangolin-postgres
+      # Rabbit
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - RABBITMQ_HOST=pangolin-rabbitmq
+      - RABBITMQ_PORT=5672
+      # Other
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_MODERATION_CHAT_ID=${TELEGRAM_MODERATION_CHAT_ID}
+    networks:
+      - pangolin-network
+
+  semantic-hub-service:
+    image: ghcr.io/${GHCR_OWNER}/pangolin-semantic-hub-service:${SEMANTIC_HUB_TAG:-latest}
+    container_name: pangolin-semantic-hub-service
+    restart: unless-stopped
+    environment:
+      - API_ENVIRONMENT=prod
+      # Database
+      - DATABASE_USERNAME=${POSTGRES_USER}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_NAME=pangolin-pulse-db
+      - DATABASE_HOST=pangolin-postgres
+      # Redis
+      - REDIS_HOST=pangolin-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DATABASE=2
+      # Rabbit
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - RABBITMQ_HOST=pangolin-rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@pangolin-rabbitmq:5672/
+      # Qdrant
+      - QDRANT_HOST=pangolin-qdrant
+      - QDRANT_PORT=6333
+      # Other
+      - EMBEDDINGS_API_URL=${EMBEDDINGS_API_URL}
+      - IDENTITY_API_KEY=${IDENTITY_API_KEY}
+      - IDENTITY_API_URL=http://pangolin-identity-service:8000
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_MODERATION_CHAT_ID=${TELEGRAM_MODERATION_CHAT_ID}
+      - GCS_PROJECT_ID=${GCS_PROJECT_ID}
+      - ROOT_PATH=/api/semantic-hub
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - pangolin-network
+
+  semantic-hub-consumer:
+    image: ghcr.io/${GHCR_OWNER}/pangolin-semantic-hub-service:${SEMANTIC_HUB_TAG:-latest}
+    container_name: pangolin-semantic-hub-consumer
+    restart: unless-stopped
+    command: ["python3", "message_consumers/events_search_consumer/consumer.py"]
+    environment:
+      - API_ENVIRONMENT=prod
+      # Rabbit
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - RABBITMQ_HOST=pangolin-rabbitmq
+      - RABBITMQ_PORT=5672
+      # Redis
+      - REDIS_HOST=pangolin-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DATABASE=3
+      # Qdrant
+      - QDRANT_HOST=pangolin-qdrant
+      - QDRANT_PORT=6333
+      # Other
+      - EMBEDDINGS_API_URL=${EMBEDDINGS_API_URL}
+    networks:
+      - pangolin-network
+
+  prediction-hub-service:
+    image: ghcr.io/${GHCR_OWNER}/pangolin-prediction-hub-service:${PREDICTION_HUB_TAG:-latest}
+    container_name: pangolin-prediction-hub-service
+    restart: unless-stopped
+    environment:
+      # Redis
+      - REDIS_URI=redis://:${REDIS_PASSWORD}@pangolin-redis:6379/4
+      # Qdrant
+      - QDRANT_HOST=pangolin-qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION=events
+      # Other
+      - USER_SERVICE_URL=http://pangolin-identity-service:8000
+      - USER_SERVICE_INTERNAL_TOKEN=${IDENTITY_API_KEY}
+      - CACHE_RECOMMENDATIONS_TTL=600
+      - APP_ROOT_PATH=/api/prediction-hub
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v0/healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - pangolin-network
+
+  prediction-hub-consumer:
+    image: ghcr.io/${GHCR_OWNER}/pangolin-prediction-hub-service:${PREDICTION_HUB_TAG:-latest}
+    container_name: pangolin-prediction-hub-consumer
+    restart: unless-stopped
+    command: ["python", "consumer.py"]
+    environment:
+      # Rabbit
+      - RABBITMQ_URI=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@pangolin-rabbitmq:5672/
+      # Redis
+      - REDIS_URI=redis://:${REDIS_PASSWORD}@pangolin-redis:6379/4
+      # Qdrant
+      - QDRANT_HOST=pangolin-qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION=events
+      - QDRANT_USER_EMBEDDINGS_COLLECTION=user_embeddings
+      # Other
+      - USER_SERVICE_URL=http://pangolin-identity-service:8000
+      - USER_SERVICE_INTERNAL_TOKEN=${IDENTITY_API_KEY}
+      - EMBEDDING_SERVICE_URL=${EMBEDDINGS_API_URL}
     networks:
       - pangolin-network
 
@@ -90,6 +280,8 @@ services:
       - dialogue-service
       - identity-service
       - pulse-service
+      - semantic-hub-service
+      - prediction-hub-service
     networks:
       - pangolin-network
 

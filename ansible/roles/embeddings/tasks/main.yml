@@ -1,0 +1,42 @@
+---
+- name: Create deploy directory structure
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0755"
+  loop:
+    - "{{ deploy_dir }}"
+    - "{{ deploy_dir }}/docker"
+    - "{{ deploy_dir }}/nginx"
+    - "{{ deploy_dir }}/nginx/embeddings"
+    - "{{ deploy_dir }}/nginx/embeddings/conf.d"
+    - "{{ deploy_dir }}/scripts"
+
+- name: Copy docker-compose embeddings
+  copy:
+    src: "{{ playbook_dir }}/../../docker/docker-compose.embeddings.yml"
+    dest: "{{ deploy_dir }}/docker/docker-compose.embeddings.yml"
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0644"
+
+- name: Copy nginx configuration
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0644"
+  loop:
+    - { src: "{{ playbook_dir }}/../../nginx/embeddings/nginx.conf", dest: "{{ deploy_dir }}/nginx/embeddings/nginx.conf" }
+    - { src: "{{ playbook_dir }}/../../nginx/embeddings/conf.d/embeddings.conf", dest: "{{ deploy_dir }}/nginx/embeddings/conf.d/embeddings.conf" }
+
+- name: Copy SSL init script
+  copy:
+    src: "{{ playbook_dir }}/../../scripts/init-ssl-embeddings.sh"
+    dest: "{{ deploy_dir }}/scripts/init-ssl-embeddings.sh"
+    owner: "{{ server_user }}"
+    group: "{{ server_user }}"
+    mode: "0755"

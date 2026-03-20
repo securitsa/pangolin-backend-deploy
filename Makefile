@@ -1,4 +1,4 @@
-.PHONY: setup deploy infra-up infra-down apps-up apps-down logs vault-encrypt vault-edit
+.PHONY: setup deploy quick-deploy setup-embeddings deploy-embeddings infra-up infra-down apps-up apps-down embeddings-up embeddings-down logs vault-encrypt vault-edit
 
 # === Ansible ===
 
@@ -7,6 +7,15 @@ setup:
 
 deploy:
 	cd ansible && ansible-playbook playbooks/deploy.yml --ask-vault-pass --ask-become-pass $(if $(service),-e "service=$(service)") $(if $(tag),-e "tag=$(tag)")
+
+quick-deploy:
+	cd ansible && ansible-playbook playbooks/quick-deploy.yml --ask-vault-pass --ask-become-pass
+
+setup-embeddings:
+	cd ansible && ansible-playbook playbooks/setup-embeddings.yml --ask-vault-pass --ask-become-pass
+
+deploy-embeddings:
+	cd ansible && ansible-playbook playbooks/deploy-embeddings.yml --ask-vault-pass --ask-become-pass
 
 vault-encrypt:
 	ansible-vault encrypt ansible/group_vars/all/vault.yml
@@ -30,6 +39,12 @@ apps-up:
 
 apps-down:
 	docker compose -f docker/docker-compose.yml --env-file .env down
+
+embeddings-up:
+	docker compose -f docker/docker-compose.embeddings.yml up -d
+
+embeddings-down:
+	docker compose -f docker/docker-compose.embeddings.yml down
 
 logs:
 	docker compose -f docker/docker-compose.yml --env-file .env logs -f $(if $(service),$(service),)

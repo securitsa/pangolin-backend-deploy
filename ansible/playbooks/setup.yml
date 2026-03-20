@@ -1,5 +1,5 @@
 - name: Setup Pangolin server
-  hosts: all
+  hosts: main
   become: yes
 
   roles:
@@ -8,6 +8,9 @@
     - app
 
   post_tasks:
+    - name: Reset connection for docker group membership
+      meta: reset_connection
+
     - name: Start infrastructure services
       shell: |
         cd {{ deploy_dir }} &&

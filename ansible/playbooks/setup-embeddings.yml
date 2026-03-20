@@ -1,0 +1,35 @@
+- name: Setup Embeddings server
+  hosts: embeddings
+  become: yes
+
+  roles:
+    - common
+    - docker
+    - embeddings
+
+  post_tasks:
+    - name: Reset connection for docker group membership
+      meta: reset_connection
+
+    - name: Create certbot webroot directory
+      file:
+        path: /var/www/certbot
+        state: directory
+        mode: "0755"
+
+    - name: Create dummy certificate for initial nginx startup
+      shell: |
+        CERT_DIR="/etc/letsencrypt/live/{{ embeddings_domain }}"
+        if [ ! -f "${CERT_DIR}/fullchain.pem" ]; then
+          mkdir -p "$CERT_DIR"
+          openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
+            -keyout "${CERT_DIR}/privkey.pem" \
+            -out "${CERT_DIR}/fullchain.pem" \
+            -subj "/CN=localhost"
+        fi
+
+    - name: Start embeddings services
+      shell: |
+        cd {{ deploy_dir }} &&
+        docker compose -f docker/docker-compose.embeddings.yml up -d
+      become_user: "{{ server_user }}"

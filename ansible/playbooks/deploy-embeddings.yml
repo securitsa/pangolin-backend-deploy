@@ -1,0 +1,15 @@
+- name: Deploy Embeddings services
+  hosts: embeddings
+  become: yes
+
+  tasks:
+    - name: Update configs on server
+      include_role:
+        name: embeddings
+
+    - name: Restart embeddings services
+      shell: |
+        cd {{ deploy_dir }} &&
+        docker compose -f docker/docker-compose.embeddings.yml pull &&
+        docker compose -f docker/docker-compose.embeddings.yml up -d
+      become_user: "{{ server_user }}"

@@ -37,6 +37,12 @@ deploy_service() {
         pulse-service)
             update_tag "$svc" "PULSE_TAG" "$tag"
             ;;
+        semantic-hub-service)
+            update_tag "$svc" "SEMANTIC_HUB_TAG" "$tag"
+            ;;
+        prediction-hub-service)
+            update_tag "$svc" "PREDICTION_HUB_TAG" "$tag"
+            ;;
         *)
             log "ERROR: Unknown service: $svc"
             exit 1
@@ -49,6 +55,24 @@ deploy_service() {
     log "Restarting ${svc}..."
     docker compose -f "$APPS_COMPOSE" --env-file "$ENV_FILE" up -d --no-deps "$svc"
 
+    # Also restart consumer for semantic-hub (shares same image)
+    if [ "$svc" = "semantic-hub-service" ]; then
+        log "Restarting semantic-hub-consumer..."
+        docker compose -f "$APPS_COMPOSE" --env-file "$ENV_FILE" up -d --no-deps semantic-hub-consumer
+    fi
+
+    # Also restart moderation-bot for pulse (shares same image)
+    if [ "$svc" = "pulse-service" ]; then
+        log "Restarting moderation-bot..."
+        docker compose -f "$APPS_COMPOSE" --env-file "$ENV_FILE" up -d --no-deps moderation-bot
+    fi
+
+    # Also restart consumer for prediction-hub (shares same image)
+    if [ "$svc" = "prediction-hub-service" ]; then
+        log "Restarting prediction-hub-consumer..."
+        docker compose -f "$APPS_COMPOSE" --env-file "$ENV_FILE" up -d --no-deps prediction-hub-consumer
+    fi
+
     log "Deployed ${svc}:${tag} successfully"
 }
 
@@ -60,7 +84,7 @@ ensure_infra() {
 case "$SERVICE" in
     all)
         ensure_infra
-        for svc in dialogue-service identity-service pulse-service; do
+        for svc in dialogue-service identity-service pulse-service semantic-hub-service prediction-hub-service; do
             deploy_service "$svc" "$TAG"
         done
         log "Restarting nginx..."
@@ -69,11 +93,11 @@ case "$SERVICE" in
     infra)
         ensure_infra
         ;;
-    dialogue-service|identity-service|pulse-service)
+    dialogue-service|identity-service|pulse-service|semantic-hub-service|prediction-hub-service)
         deploy_service "$SERVICE" "$TAG"
         ;;
     *)
-        echo "Usage: $0 {all|infra|dialogue-service|identity-service|pulse-service} [tag]"
+        echo "Usage: $0 {all|infra|dialogue-service|identity-service|pulse-service|semantic-hub-service|prediction-hub-service} [tag]"
         exit 1
         ;;
 esac

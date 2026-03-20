@@ -1,5 +1,5 @@
 - name: Deploy Pangolin services
-  hosts: all
+  hosts: main
   become: yes
 
   tasks:

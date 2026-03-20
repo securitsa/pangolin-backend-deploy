@@ -1,0 +1,8 @@
+- name: Quick deploy – pull latest images and restart
+  hosts: main
+  become: yes
+
+  tasks:
+    - name: Pull latest images and restart services
+      shell: bash {{ deploy_dir }}/scripts/quick-deploy.sh
+      become_user: "{{ server_user }}"
